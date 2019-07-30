@@ -5,7 +5,7 @@ import com.firstcateringltd.exception.CardNotRegisteredException;
 import com.firstcateringltd.exception.NotSufficientFundsException;
 import com.firstcateringltd.exception.ResourceNotFoundException;
 import com.firstcateringltd.model.Employee;
-//import com.firstcateringltd.security.PasswordHasher;
+import com.firstcateringltd.security.CreditCardHasher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.web.bind.annotation.*;
@@ -58,11 +58,13 @@ public class EmployeeController {
      * @return New Employee
      * @param employee
      */
-    @PostMapping(value = "/employees/register", produces = "application/json", consumes = "application/json")
+    @PostMapping(value = "/employees/register",
+                 produces = "application/json",
+                 consumes = "application/json")
     public Employee addNewEmployee(@RequestBody Employee employee, String ccNumber) {
-//        PasswordHasher pwHasher = new PasswordHasher();
-//
-//        employee.setCreditCardNumber(pwHasher.hassPassword(ccNumber));
+        CreditCardHasher pwHasher = new CreditCardHasher();
+
+        employee.setCreditCardNumber(pwHasher.hashCreditCard(ccNumber));
         return employeeService.save(employee);
     }
 
@@ -95,7 +97,7 @@ public class EmployeeController {
                 .orElseThrow(() -> new ResourceNotFoundException("No employee found with id: " + id));
 
         if (!employeeCreditCheck.isCardRegistered()) {
-            throw new CardNotRegisteredException();
+            throw new CardNotRegisteredException("Card not registered, please register a card first", null);
         }
 
         return employeeCreditCheck.getCredit();
@@ -109,7 +111,9 @@ public class EmployeeController {
      * @exception CardNotRegisteredException
      */
     @Modifying(clearAutomatically = true)
-    @PutMapping(value = "/employees/credit/topup/{id}", produces = "application/json", consumes = "application/json")
+    @PutMapping(value = "/employees/credit/topup/{id}",
+                produces = "application/json",
+                consumes = "application/json")
     public Double topUpCredit(@PathVariable("id") Long id,
                                 @RequestParam(required = true, name = "credit") Double credit) {
         Employee employee = employeeService.findById(id)
@@ -141,10 +145,10 @@ public class EmployeeController {
                 .orElseThrow(() -> new ResourceNotFoundException("No employee found with id: " + id));
 
         if (!employee.isCardRegistered()) {
-            throw new CardNotRegisteredException();
+            throw new CardNotRegisteredException("Card not registered, please register a card first", null);
         }
 
-        if (employee.getCredit() == 0) {
+        if (employee.getCredit() <= 0) {
             throw new NotSufficientFundsException("There are not sufficient funds to make a withdrawal of that size: " + credit);
         }
 
@@ -169,7 +173,10 @@ public class EmployeeController {
     public String scanAndCheckDataCard(@PathVariable("dataCard") String dataCard) {
         Employee employee = employeeService.findByDataCard(dataCard);
 
-        if (employee.getDataCard() == null) {
+        if (employee.getDataCard() == null ||
+            employee.getDataCard().equals("") ||
+            dataCard == null ||
+            dataCard.equals("")) {
             throw new CardNotRegisteredException();
         }
 
@@ -177,7 +184,8 @@ public class EmployeeController {
     }
 
     /**
-     * Part imaginary method. When data card is double tapped/tapped a second time, display below message
+     * Part imaginary method.
+     * When data card is double tapped/tapped a second time, display below message
      * @return Welcome message based on registered data card
      * @param dataCard
      * @exception CardNotRegisteredException
@@ -186,7 +194,10 @@ public class EmployeeController {
     public String doubleTapDataCard(@PathVariable("dataCard") String dataCard) {
         Employee employee = employeeService.findByDataCard(dataCard);
 
-        if (employee.getDataCard() == null) {
+        if (employee.getDataCard() == null ||
+                employee.getDataCard().equals("") ||
+                dataCard == null ||
+                dataCard.equals("")) {
             throw new CardNotRegisteredException();
         }
 
